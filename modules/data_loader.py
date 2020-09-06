@@ -54,7 +54,40 @@ class Dataset_ls(D.Dataset):
 
         return {'image': img, 'mask' : ctour , 'id': data_id}
 
+class Dataset_tiff(D.Dataset):
+    """
+    dataset from list
+    returns data after preperation
+    """
+    def __init__(self, root, lst, transform=None):
+        self.df=pd.read_csv(join(root, lst), delimiter=' ', names=['data', 'ctour'])
+        self.root=os.path.abspath(root)
+        self.transform=transform
 
+    def __len__(self):
+        return len(self.df)
+
+    def __getitem__(self, index):
+
+        # get image (jpg)
+        img_abspath= join(self.root, self.df['data'][index])
+        assert os.path.isfile(img_abspath), "file  {}. doesn't exist.".format(img_abspath)
+
+               # Edge Maps (binary files)
+        ct_abspath=join(self.root, self.df['ctour'][index])
+        assert os.path.isfile(ct_abspath), "file  {}. doesn't exist.".format(ct_abspath)
+
+        img=cv2.imread(img_abspath , -1)
+        ctour=cv2.imread(ct_abspath, 0)
+        if self.transform:
+            img=self.transform(img)
+            ctour=self.transform(ctour)
+
+        img, ctour= prepare_img_mat(img), prepare_ctour(ctour)
+
+        (data_id, _) = os.path.splitext(os.path.basename(img_abspath))
+
+        return {'image': img, 'mask' : ctour , 'id': data_id}
 
 class BasicDataset(D.Dataset):
     """
@@ -123,7 +156,8 @@ class dataset_mat(D.Dataset):
 
 def prepare_img_mat(img):
         img=np.array(img, dtype=np.float32)
-        img=img*255/np.max(img)
+        #img=(img-np.min(img))/(np.max(img)-np.min(img))
+        img=img*255
         img=np.expand_dims(img, axis=2)
         img=np.repeat(img,3,axis=2)
         img -= np.array((104.00698793,116.66876762,122.67891434))

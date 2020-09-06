@@ -54,12 +54,18 @@ def main():
     # define network
     net=Network(args, model=RCF())
 
-    # train dataset
-    train_dataset=Dataset_ls(root=root,lst='train_pair.lst')
+    ds=[Dataset_ls(root=root,lst='train_pair.lst'),
+    Dataset_ls(root=root,lst='train_pair.lst', transform=Rescale_byrate(.75)),
+    Dataset_ls(root=root,lst='train_pair.lst',transform=Rescale_byrate(.5)),
+    Dataset_ls(root=root,lst='train_pair.lst',transform=Rescale_byrate(.25)),
+    Dataset_ls(root=root,lst='train_pair.lst', transform=Fliplr())
+    ]
+    #train_dataset=Dataset_ls(root=root,lst='train_pair.lst')
+    train_dataset=ConcatDataset(ds)
     train_loader= DataLoader(train_dataset, batch_size=1, shuffle=True)
 
     # development dataset (optional)
-    dev_dataset=BasicDataset(args.dev_dir, ext='png')
+    dev_dataset=Dataset_ls(root=root,lst='dev.lst')
     dev_loader= DataLoader(dev_dataset, batch_size=1)
 
     # define trainer
