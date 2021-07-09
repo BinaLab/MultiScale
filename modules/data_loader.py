@@ -23,7 +23,7 @@ class SnowData(D.Dataset):
     returns data after preperation
     """
     def __init__(self, root, lst, transform=None,  wt =None):
-        self.df=pd.read_csv(join(root, lst), delimiter=' ', names=['data', 'ctour'])
+        self.df=pd.read_csv(lst, delimiter=' ', names=['data', 'ctour'])
         self.root=root #os.path.abspath(root)
         self.transform=transform
 
