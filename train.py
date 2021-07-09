@@ -2,7 +2,7 @@
 # coding=utf-8
 
 #from utils import Logger, arg_parser
-from modules.data_loader import SnowData
+
 
 import os
 from os.path import join, isdir
@@ -12,6 +12,7 @@ from pathlib import Path
 
 #from modules.models import HED
 from msnet import msNet
+from modules.data_loader import SnowData
 from modules.trainer import Trainer, Network 
 from modules.utils import struct
 from modules.transforms import Fliplr, Rescale_byrate
