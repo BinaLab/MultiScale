@@ -1,22 +1,23 @@
 import os
 import numpy as np
-from PIL import Image
-import time
+#from PIL import Image
+#import time
 import torch
 
-import logging
+#import logging
 from tqdm import tqdm
 from torch.utils.tensorboard import SummaryWriter
-from torch.utils.data import DataLoader, random_split
+#from torch.utils.data import DataLoader, random_split
+import torch.nn as nn
 
 from torch.optim import lr_scheduler
-import torchvision
+#import torchvision
 import cv2
 
 
 from os.path import join, split, isdir, isfile, splitext
 
-from modules.models import convert_vgg , weights_init
+#from modules.models_aux import  weights_init #, convert_vgg 
 from modules.functions import   cross_entropy_loss # sigmoid_cross_entropy_loss
 from modules.utils import Averagvalue #, save_checkpoint
 
@@ -29,15 +30,16 @@ from modules.utils import Averagvalue #, save_checkpoint
 class Network(object):
     def __init__(self, args, model):
         super(Network, self).__init__()
-
+        # a necessary class for initialization and pretraining, there are precision issues when import model directly
 
         self.model = model
-        self.model.apply(weights_init)
-
-
-        if args.pretrained_path is not None:
+        if args.weights_init_on:
             self.model.apply(weights_init)
-            vgg_pretrain(model=model, pretrained_path=args.pretrained_path)
+
+
+        # if args.pretrained_path is not None:
+        #     self.model.apply(weights_init)
+        #     vgg_pretrain(model=model, pretrained_path=args.pretrained_path)
 
         if args.resume_path is not None:
             resume(model=model, resume_path=args.resume_path)
@@ -105,13 +107,19 @@ class Trainer(object):
         with tqdm(total=self.n_train, desc=f'Epoch {epoch + 1}/{self.max_epoch}', unit='img') as pbar:
             for batch in self.train_loader:
 
-                image, label, image_name= batch['image'] , batch['mask'] , batch['id'][0]
+                data, label, image_name= batch['data'], batch['label'], batch['id'][0]
+                
+                
 
                 if torch.cuda.is_available():
-                    image, label = image.cuda(), label.cuda()
-
+                    for key in data:
+                        data[key]=data[key].cuda()
+                    label=label.cuda()
+                    
+                image=data['image']
+                
                 ## forward
-                outputs = self.model(image)
+                outputs = self.model(data)
                 ## loss
 
 
@@ -134,6 +142,8 @@ class Trainer(object):
                     self.optimizer.step()
                     self.optimizer.zero_grad()
                     counter = 0
+                    #adjust learnig rate
+                    self.scheduler.step()
                     self.global_step += 1
 
                 # measure accuracy and record loss
@@ -146,7 +156,7 @@ class Trainer(object):
 
 
 
-                if self.global_step % (self.n_dataset // (10 * self.batch_size)) == 0:
+                if (self.global_step >0) and (self.global_step % 500 ==0): #(self.n_dataset // (10 * self.batch_size)) == 0:
                     ## logging
                     for tag, value in self.model.named_parameters():
                         tag = tag.replace('.', '/')
@@ -174,31 +184,39 @@ class Trainer(object):
         if val_losses.count>0:
             self.writer.add_scalar('Val_Loss_avg', val_losses.avg, epoch+1)
         self.writer.add_scalar('learning_rate', self.optimizer.param_groups[0]['lr'], self.global_step)
-        #adjust learnig rate
-        self.scheduler.step()
+        
 
-    def dev(self,dev_loader, save_dir):
+    def dev(self,dev_loader, save_dir, epoch):
         print("Running test ========= >")
         self.model.eval()
         if not isdir(save_dir):
             os.makedirs(save_dir)
         for idx, batch in enumerate(dev_loader):
 
-            image,image_id= batch['image'] , batch['id'][0]
+            #image,image_id= batch['image'] ,  batch['id'][0]
+            
+            data, label, image_name= batch['data'], batch['label'], batch['id'][0]
 
+            _, _, H, W = data['image'].shape
+            
+            if torch.cuda.is_available():
+                for key in data:
+                    data[key]=data[key].cuda()
 
-            if self.use_cuda:
-                image = image.cuda()
-            _, _, H, W = image.shape
+            
 
             with torch.no_grad():
-                results = self.model(image)
+               outputs = self.model(data)
 
-            result=tensor2image(results[-1])
-            result_b=tensor2image(1-results[-1])
+            outputs.append(1-outputs[-1])
+            outputs.append(label)
+            dev_checkpoint(save_dir, -1, epoch, image_name, outputs)
+            
+            # result=tensor2image(results[-1])
+            # result_b=tensor2image(1-results[-1])
 
-            cv2.imwrite(join(save_dir, f"{image_id}.png".replace('image','fuse')), result)
-            cv2.imwrite(join(save_dir, f"{image_id}.jpg".replace('image','fuse')), result_b)
+            # cv2.imwrite(join(save_dir, f"{image_id}.png".replace('image','fuse')), result)
+            # cv2.imwrite(join(save_dir, f"{image_id}.jpg".replace('image','fuse')), result_b)
 
 
     def save_state(self, epoch, save_path='checkpoint.pth'):
@@ -209,13 +227,26 @@ class Trainer(object):
                     }, save_path)
 
 ##========================== initial state
-def vgg_pretrain(model, pretrained_path):
-    pretrained_dict = torch.load(pretrained_path)
-    pretrained_dict = convert_vgg(pretrained_dict)
 
-    model_dict = model.state_dict()
-    model_dict.update(pretrained_dict)
-    model.load_state_dict(model_dict)
+def weights_init(m):
+    """ Weight initialization function. """
+    if isinstance(m, nn.Conv2d):
+        # Initialize: m.weight.
+        # xavier(m.weight.data) #init 1
+        #m.weight.data.normal_(0, 0.01) #init 2
+        #init HED
+        if m.weight.data.shape == torch.Size([1, 5, 1, 1]):
+            # Constant initialization for fusion layer in HED network.
+            torch.nn.init.constant_(m.weight, 0.2)
+        else:
+            # Zero initialization following official repository.
+            # Reference: hed/docs/tutorial/layers.md
+            m.weight.data.zero_()
+        # Initialize: m.bias.
+        if m.bias is not None:
+            # Zero initialization.
+            m.bias.data.zero_()
+
 
 def resume(model, resume_path):
     if isfile(resume_path):
@@ -234,21 +265,45 @@ def tune_lrs(model, lr, weight_decay):
     bias_params= [param for name,param in list(model.named_parameters()) if name.find('bias')!=-1]
     weight_params= [param for name,param in list(model.named_parameters()) if name.find('weight')!=-1]
 
-    conv1_4_weights , conv1_4_bias  = weight_params[0:10]  , bias_params[0:10]
-    conv5_weights   , conv5_bias    = weight_params[10:13] , bias_params[10:13]
-    d1_5_weights    , d1_5_bias     = weight_params[13:18] , bias_params[13:18]
-    fuse_weights , fuse_bias =weight_params[-1] , bias_params[-1]
 
-    tuned_lrs=[
-            {'params': conv1_4_weights, 'lr': lr*1    , 'weight_decay': weight_decay},
-            {'params': conv1_4_bias,    'lr': lr*2    , 'weight_decay': 0.},
-            {'params': conv5_weights,   'lr': lr*100  , 'weight_decay': weight_decay},
-            {'params': conv5_bias,      'lr': lr*200  , 'weight_decay': 0.},
-            {'params': d1_5_weights,    'lr': lr*0.01 , 'weight_decay': weight_decay},
-            {'params': d1_5_bias,       'lr': lr*0.02 , 'weight_decay': 0.},
-            {'params': fuse_weights,    'lr': lr*0.001, 'weight_decay': weight_decay},
-            {'params': fuse_bias ,      'lr': lr*0.002, 'weight_decay': 0.},
-            ]
+    if len(weight_params)==19:
+        down1_4_weights , down1_4_bias  = weight_params[0:10]  , bias_params[0:10]
+        down5_weights   , down5_bias    = weight_params[10:13] , bias_params[10:13]
+        up1_5_weights    , up1_5_bias     = weight_params[13:18] , bias_params[13:18]
+        fuse_weights , fuse_bias =weight_params[-1] , bias_params[-1]
+        
+        tuned_lrs=[
+        {'params': down1_4_weights, 'lr': lr*1    , 'weight_decay': weight_decay},
+        {'params': down1_4_bias,    'lr': lr*2    , 'weight_decay': 0.},
+        {'params': down5_weights,   'lr': lr*100  , 'weight_decay': weight_decay},
+        {'params': down5_bias,      'lr': lr*200  , 'weight_upecay': 0.},
+        {'params': up1_5_weights,    'lr': lr*0.01 , 'weight_decay': weight_decay},
+        {'params': up1_5_bias,       'lr': lr*0.02 , 'weight_decay': 0.},
+        {'params': fuse_weights,    'lr': lr*0.001, 'weight_decay': weight_decay},
+        {'params': fuse_bias ,      'lr': lr*0.002, 'weight_decay': 0.},
+        ]
+
+    elif len(weight_params)==32: #bn
+        down1_4_weights , down1_4_bias  = weight_params[0:20]  , bias_params[0:20]
+        down5_weights   , down5_bias    = weight_params[20:26] , bias_params[20:26]
+        up1_5_weights    , up1_5_bias     = weight_params[26:31] , bias_params[26:31]
+        fuse_weights , fuse_bias =weight_params[-1] , bias_params[-1]
+        
+        tuned_lrs=[
+        {'params': down1_4_weights, 'lr': lr*1    , 'weight_decay': weight_decay},
+        {'params': down1_4_bias,    'lr': lr*2    , 'weight_decay': 0.},
+        {'params': down5_weights,   'lr': lr*100  , 'weight_decay': weight_decay},
+        {'params': down5_bias,      'lr': lr*200  , 'weight_upecay': 0.},
+        {'params': up1_5_weights,    'lr': lr*0.01 , 'weight_decay': weight_decay},
+        {'params': up1_5_bias,       'lr': lr*0.02 , 'weight_decay': 0.},
+        {'params': fuse_weights,    'lr': lr*0.001, 'weight_decay': weight_decay},
+        {'params': fuse_bias ,      'lr': lr*0.002, 'weight_decay': 0.},
+        ]
+    else:
+        print('Warning in tune_lrs')
+        return model.parameters()
+
+    
     return  tuned_lrs
 
 
@@ -258,26 +313,21 @@ def dev_checkpoint(save_dir, i, epoch, image_name, outputs):
     # display and logging
     if not isdir(save_dir):
         os.makedirs(save_dir)
-        ## use torchvision
-        # _, _, H, W = outputs[0].shape
-        # all_results = torch.zeros((len(outputs), 1, H, W))
-        # for j in range(len(outputs)):
-        #     all_results[j, 0, :, :] = outputs[j][0, 0, :, :]
-        # # res=torch.squeeze(all_results.detach()).cpu().permute(1, 2, 0).numpy()
-        # torchvision.utils.save_image(all_results, join(save_dir, "iter-{}-{}.png".format(i, image_name))) #image_name[5:11]
-
-        ## use cv2
     outs=[]
     for o in outputs:
         outs.append(tensor2image(o))
     if len(outs[-1].shape)==3:
         outs[-1]=outs[-1][0,:,:] #if RGB, show one layer only
-
+    if i==-1:
+        output_name=f"{image_name}.jpg"
+    else:
+        output_name=f"global_step-{i}-{image_name}.jpg"
     out=cv2.hconcat(outs) # if gray
-    cv2.imwrite(join(save_dir, f"global_step-{i}-{image_name}.jpg"), out)
+    cv2.imwrite(join(save_dir, output_name), out)
 
 def tensor2image(image):
             result = torch.squeeze(image.detach()).cpu().numpy()
             result = (result * 255).astype(np.uint8, copy=False)
             #(torch.squeeze(o.detach()).cpu().numpy()*255).astype(np.uint8, copy=False)
             return result
+
