@@ -9,7 +9,7 @@ result (d) the ground truth. </figcaption>
 
 
 ## Acknowledgment 
-The MSnet model and code was developed based on lots of prior works, particularly, [Saining Xie] (https://github.com/s9xie/hed) and [Milesial](https://github.com/milesial/Pytorch-UNet).
+The MSnet model and code was developed based on lots of prior works, particularly, [Saining Xie](https://github.com/s9xie/hed) and [Milesial](https://github.com/milesial/Pytorch-UNet).
 
 ## Citation 
 <a id="1">[1]</a> 
