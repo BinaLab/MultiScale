@@ -29,14 +29,15 @@ from datetime import datetime
 root=Path("../../Datasets/Cresis/2012_main/")#macgregor', 'image')
 #root="../../Datasets/Cresis/2012_main/"
 #root="..\..\\Datasets\\Cresis\\2012_main"
-tag = datetime.now().strftime("%y%m%d-%H%M%S")
+tag = datetime.now().strftime("%y%m%d-%H%M%S")+'git2'
 
 
 params={
      'root': root,
+     'trainlist':Path('./data/train_pairs.lst'),
+     'devlist':Path('./data/dev.lst'),
      'tmp': Path(f'../tmp/{tag}'), ##os.getcwd()
      'log_dir': Path(f'../logs/{tag}'),
-     'dev_dir':root/'sample36', #optional
      'val_percent': 0,
      'start_epoch' : 0,
      'max_epoch' : 15,
@@ -63,19 +64,20 @@ def main():
     # define network
     net=Network(args, model=msNet())
 
-    ds=[SnowData(root=root,lst='train_pair.lst'),
-    SnowData(root=root,lst='train_pair.lst', transform=Rescale_byrate(.75)),
-    SnowData(root=root,lst='train_pair.lst',transform=Rescale_byrate(.5)),
-    SnowData(root=root,lst='train_pair.lst',transform=Rescale_byrate(.25)),
-    SnowData(root=root,lst='train_pair.lst', transform=Fliplr())
+    ds=[SnowData(root=root,lst=args.trainlist),
+    SnowData(root=root,lst=args.trainlist, transform=Rescale_byrate(.75)),
+    SnowData(root=root,lst=args.trainlist,transform=Rescale_byrate(.5)),
+    SnowData(root=root,lst=args.trainlist,transform=Rescale_byrate(.25)),
+    SnowData(root=root,lst=args.trainlist, transform=Fliplr())
     ]
-    #train_dataset=SnowData(root=root,lst='train_pair.lst')
+    #train_dataset=SnowData(root=root,lst=args.trainlist)
     train_dataset=ConcatDataset(ds)
     train_loader= DataLoader(train_dataset, batch_size=1, shuffle=True)
 
-    # development dataset (optional)
-    dev_dataset=SnowData(root=root,lst='dev.lst')
-    dev_loader= DataLoader(dev_dataset, batch_size=1)
+    # development dataset (optional):
+    if args.devlist is not None:
+        dev_dataset=SnowData(root=root,lst=args.devlist)
+        dev_loader= DataLoader(dev_dataset, batch_size=1)
 
     # define trainer
     trainer=Trainer(args,net, train_loader=train_loader)
@@ -83,7 +85,7 @@ def main():
     # switch to train mode: not needed!  model.train()
     for epoch in range(args.start_epoch, args.max_epoch):
         ## initial log (optional:sample36)
-        if epoch == 0:
+        if (epoch == 0) and (args.devlist is not None):
             print("Performing initial testing...")
             trainer.dev(dev_loader=dev_loader,save_dir = join(args.tmp, 'testing-record-0-initial'), epoch=epoch)
     
@@ -91,7 +93,8 @@ def main():
         trainer.train(save_dir = args.tmp, epoch=epoch)
     
         ## dev check (optional:sample36)
-        trainer.dev(dev_loader=dev_loader,save_dir = join(args.tmp, f'testing-record-epoch-{epoch+1}'), epoch=epoch)
+        if args.devlist is not None:
+            trainer.dev(dev_loader=dev_loader,save_dir = join(args.tmp, f'testing-record-epoch-{epoch+1}'), epoch=epoch)
         
 if __name__ == '__main__':
     main()
