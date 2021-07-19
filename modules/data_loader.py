@@ -22,10 +22,11 @@ class SnowData(D.Dataset):
     dataset from list
     returns data after preperation
     """
-    def __init__(self, root, lst, transform=None,  wt =None):
-        self.df=pd.read_csv(lst, delimiter=' ', names=['data', 'ctour'])
+    def __init__(self, root, lst, train=True, transform=None,  wt =None):
+        self.df=pd.read_csv(lst, names=['data'])
         self.root=root #os.path.abspath(root)
         self.transform=transform
+        self.train=train
 
     def __len__(self):
         return len(self.df)
@@ -37,29 +38,34 @@ class SnowData(D.Dataset):
         assert os.path.isfile(img_abspath), "file  {}. doesn't exist.".format(img_abspath)
 
                # Edge Maps (binary files)
-        ct_abspath=join(self.root, self.df['ctour'][index])
-        assert os.path.isfile(ct_abspath), "file  {}. doesn't exist.".format(ct_abspath)
+
 
         img=cv2.imread(img_abspath,0)
-        ctour=cv2.imread(ct_abspath, cv2.IMREAD_GRAYSCALE)
         if self.transform:
             img=self.transform(img)
-            ctour=self.transform(ctour)
-
-                #### will be added later
+                
+            #### will be added later
         # if self.wt is not None:
         #     data=get_wt(img, self.wt , mode='periodic', level=4)
         # else:
         #     data={}
         data={}
-        img, ctour= prepare_img(img), prepare_ctour(ctour)
-        #img=img[0,:,:]*np.ones(1, dtype=np.float32)[None, None, :]
-
         data['image']=img
-
+        img = prepare_img(img)
+         #img=img[0,:,:]*np.ones(1, dtype=np.float32)[None, None, :]
         (data_id, _) = splitext(basename(img_abspath))
-
-        return {'data': data, 'label': ctour, 'id': data_id}
+        if self.train:
+            ct_abspath=img_abspath.replace('data_','layer_binary_')
+            assert os.path.isfile(ct_abspath), "file  {}. doesn't exist.".format(ct_abspath)
+            ctour=cv2.imread(ct_abspath, cv2.IMREAD_GRAYSCALE)
+            if self.transform:
+                ctour=self.transform(ctour)
+            ctour= prepare_ctour(ctour)
+           
+    
+            return {'data': data, 'label': ctour, 'id': data_id}
+        else:    
+            return {'data': data,  'id': data_id}            
         
 def prepare_img(img):
         img=np.array(img, dtype=np.float32)
