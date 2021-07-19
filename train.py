@@ -26,7 +26,7 @@ from datetime import datetime
 
 
 
-root=Path("./cresis/")#macgregor', 'image')
+root=Path("../../cresis/")#macgregor', 'image')
 #root="../../Datasets/Cresis/2012_main/"
 #root="..\..\\Datasets\\Cresis\\2012_main"
 tag = datetime.now().strftime("%y%m%d-%H%M%S")
