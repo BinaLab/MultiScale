@@ -50,8 +50,9 @@ class SnowData(D.Dataset):
         # else:
         #     data={}
         data={}
-        data['image']=img
         img = prepare_img(img)
+        data['image']=img
+        
          #img=img[0,:,:]*np.ones(1, dtype=np.float32)[None, None, :]
         (data_id, _) = splitext(basename(img_abspath))
         if self.train:
@@ -72,16 +73,15 @@ def prepare_img(img):
         #img=np.expand_dims(img,axis=2)
         (R,G,B)=(104.00698793,116.66876762,122.67891434)
         img -= np.array((0.299*R + 0.587*G + 0.114*B))
-        img=img*np.ones(1, dtype=np.float32)[None, None, :]
+        #img=img*np.ones(1, dtype=np.float32)[None, None, :]
         #img=img.transpose(2,0,1)
-        return img    
+        return np.expand_dims(img,axis=0)    
 
 
 def prepare_ctour(ctour):
         #ctour=np.array(ctour, dtype=np.float32)
         ctour = (ctour > 0 ).astype(np.float32)
-        ctour=np.expand_dims(ctour,axis=0)
-        return ctour
+        return np.expand_dims(ctour,axis=0)
 
 
 
