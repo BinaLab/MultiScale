@@ -26,7 +26,7 @@ from datetime import datetime
 
 
 
-root=Path("../cresis/")
+root=Path("../cresis-data/")
 
 tag = datetime.now().strftime("%y%m%d-%H%M%S")
 
