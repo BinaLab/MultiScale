@@ -26,7 +26,7 @@ from datetime import datetime
 
 
 
-root=Path("../cresis-data/")
+root=Path("../cresis/")
 
 tag = datetime.now().strftime("%y%m%d-%H%M%S")
 
@@ -50,6 +50,7 @@ params={
      'pretrained_path': None,
      'resume_path': None,
      'weights_init_on': False,
+     'multi_gpu': True
      }
 
 args= struct(**params)
@@ -71,7 +72,7 @@ def main():
     ]
     #train_dataset=SnowData(root=root,lst=args.trainlist)
     train_dataset=ConcatDataset(ds)
-    train_loader= DataLoader(train_dataset, batch_size=1, shuffle=True)
+    train_loader= DataLoader(train_dataset, num_workers=8, batch_size=1, shuffle=True)
 
     # development dataset (optional):
     if args.devlist is not None:

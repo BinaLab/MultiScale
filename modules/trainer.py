@@ -32,7 +32,10 @@ class Network(object):
         super(Network, self).__init__()
         # a necessary class for initialization and pretraining, there are precision issues when import model directly
 
-        self.model = model
+        if args.multi_gpu:
+            self.model = nn.DataParallel(model)
+        else:
+            self.model = model
         if args.weights_init_on:
             self.model.apply(weights_init)
 
