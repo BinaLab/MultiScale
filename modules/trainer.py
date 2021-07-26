@@ -32,10 +32,13 @@ class Network(object):
         super(Network, self).__init__()
         # a necessary class for initialization and pretraining, there are precision issues when import model directly
 
+        model.to(args.device)
+        
         if args.multi_gpu:
             self.model = nn.DataParallel(model)
         else:
             self.model = model
+            
         if args.weights_init_on:
             self.model.apply(weights_init)
 
@@ -47,8 +50,8 @@ class Network(object):
         if args.resume_path is not None:
             resume(model=model, resume_path=args.resume_path)
 
-        if torch.cuda.is_available():
-            self.model.cuda()
+        # if torch.cuda.is_available():
+        #     self.model.cuda()
 
 
 class Trainer(object):
@@ -93,10 +96,20 @@ class Trainer(object):
 
 
         self.scheduler = lr_scheduler.StepLR(self.optimizer, step_size=args.stepsize, gamma=args.gamma)
+        
+        self.final_state= None
+        
+        if args.log_dir is not None:
+            self.writer = SummaryWriter(args.log_dir)
+        else:
+            self.writer =None
+            
+        
+        self.tmp_dir= args.tmp_dir
+        #self.logger= args.logger
 
-        self.writer = SummaryWriter(args.log_dir)
-
-    def train(self, save_dir, epoch):
+            
+    def train(self, epoch):
 
         ## initilization
         losses = Averagvalue()
@@ -153,41 +166,48 @@ class Trainer(object):
                 losses.update(loss.item(), image.size(0))
                 epoch_loss.append(loss.item())
 
-                self.writer.add_scalar('Loss/train', loss.item(), self.global_step)
+                
                 pbar.set_postfix(**{'loss (batch)': loss.item()})
                 pbar.update(image.shape[0])
 
-
-
+                if self.writer is not None:
+                    self.writer.add_scalar('Loss/train', loss.item(), self.global_step)
+    
                 if (self.global_step >0) and (self.global_step % 500 ==0): #(self.n_dataset // (10 * self.batch_size)) == 0:
-                    ## logging
-                    for tag, value in self.model.named_parameters():
-                        tag = tag.replace('.', '/')
-                        self.writer.add_histogram('weights/' + tag, value.data.cpu().numpy(), self.global_step)
-                        self.writer.add_histogram('grads/' + tag, value.grad.data.cpu().numpy(), self.global_step)
+        
+                    if self.writer is not None:
+                        #tensorboard
+                        for tag, value in self.model.named_parameters():
+                            tag = tag.replace('.', '/')
+                            self.writer.add_histogram('weights/' + tag, value.data.cpu().numpy(), self.global_step)
+                            self.writer.add_histogram('grads/' + tag, value.grad.data.cpu().numpy(), self.global_step)
+    
+    
+                        self.writer.add_images('images', image, self.global_step)
+                        self.writer.add_images('masks/true', label, self.global_step)
+                        self.writer.add_images('masks/pred', outputs[-1] > 0.5, self.global_step)
 
 
-                    self.writer.add_images('images', image, self.global_step)
-                    self.writer.add_images('masks/true', label, self.global_step)
-                    self.writer.add_images('masks/pred', outputs[-1] > 0.5, self.global_step)
+                    if self.tmp_dir is not None:
+                        outputs.append(label)
+                        outputs.append(image)
+                        dev_checkpoint(save_dir=join(self.tmp_dir, f'training-epoch-{epoch+1}-record'),
+                                   i=self.global_step, epoch=epoch, image_name=image_name, outputs= outputs)
 
-
-
-                    outputs.append(label)
-                    outputs.append(image)
-
-                    dev_checkpoint(save_dir=join(save_dir, f'training-epoch-{epoch+1}-record'),
-                               i=self.global_step, epoch=epoch, image_name=image_name, outputs= outputs)
-
-
-        self.save_state(epoch, save_path=join(save_dir, f'checkpoint_epoch{epoch+1}.pth'))
-        self.writer.add_scalar('Loss_avg', losses.avg, epoch+1)
+        if self.tmp_dir is not None:
+            self.save_state(epoch, save_path=join(self.tmp_dir , f'checkpoint_epoch{epoch+1}.pth'))
+        if epoch==self.max_epoch-1:
+            self.final_state= {'epoch': epoch,
+                                'state_dict': self.model.state_dict(),
+                                'optimizer': self.optimizer.state_dict()
+                                }
+        if self.writer is not None:
+            self.writer.add_scalar('Loss_avg', losses.avg, epoch+1)
+            if val_losses.count>0:
+                self.writer.add_scalar('Val_Loss_avg', val_losses.avg, epoch+1)
+            self.writer.add_scalar('learning_rate', self.optimizer.param_groups[0]['lr'], self.global_step)
         self.train_loss.append(losses.avg)
         self.train_loss_detail += epoch_loss
-        if val_losses.count>0:
-            self.writer.add_scalar('Val_Loss_avg', val_losses.avg, epoch+1)
-        self.writer.add_scalar('learning_rate', self.optimizer.param_groups[0]['lr'], self.global_step)
-        
 
     def dev(self,dev_loader, save_dir, epoch):
         print("Running test ========= >")
