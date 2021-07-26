@@ -41,7 +41,7 @@ params={
      'logger_dir': Path('../logger'),
      'val_percent': 0,
      'start_epoch' : 0,
-     'max_epoch' : 3,
+     'max_epoch' : 15,
      'batch_size': 1,
      'itersize': 10,
      'stepsize': 1e4,
