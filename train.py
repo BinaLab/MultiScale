@@ -10,7 +10,6 @@ from pathlib import Path
 
 #from utils import Logger, arg_parser
 
-#from modules.models import HED
 from msnet import msNet
 from modules.data_loader import SnowData
 from modules.trainer import Trainer, Network 
