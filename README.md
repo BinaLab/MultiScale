@@ -1,5 +1,5 @@
-# MultiScale Deep Learning model
-MultiScale Deep Learning model with vgg16 backbone used for training the internal layer tracker model [[1]](#1).
+# Snow Layer Tracking MultiScale Deep Learning model
+The purpose of this work is to present a deep learning model for tracking the internal layers of ice and snow in airborne radar images from polar regions [[1]](#1).
 
 <figure>
     <img src="http://yari.is.umbc.edu/images/fig4.png" width=80%>
