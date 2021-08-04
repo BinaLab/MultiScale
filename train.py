@@ -192,8 +192,8 @@ if args.tmp_dir is  None:
     restore_path=join(args.final,f'final_{args.max_epoch}.pth')
     save_dir=join(args.final, 'final_test')
 else:
-    restore_path=Path(f'../{args.tmp}/{tag}/checkpoint_epoch{args.max_epoch}.pth')
-    save_dir=Path(f'../{args.tmp}/{tag}/final_test')
+    restore_path=Path(f'../{args.tmp_dir}/{tag}/checkpoint_epoch{args.max_epoch}.pth')
+    save_dir=Path(f'../{args.tmp_dir}/{tag}/final_test')
 
 
 predict(model_type= msNet(),
