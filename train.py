@@ -164,7 +164,7 @@ for epoch in range(args.start_epoch, args.max_epoch):
 dt=datetime.now()-t1
 args.logger.info(f"Total training time : {dt.total_seconds()} seconds")
 
-if args.tmp is None:
+if args.tmp_dir is None:
     if not isdir(args.final):
         os.makedirs(args.final)   
     t0=datetime.now()       
@@ -188,12 +188,12 @@ ds_params={"bucket":BUCKET,  "s3Get": si.from_s3 , 'train' : False, 'wt':None}
 test_dataset=SnowData_s3(**ds_params, keys=images_test)
 test_loader= DataLoader(test_dataset, batch_size=1)
 
-if args.tmp is  None:
+if args.tmp_dir is  None:
     restore_path=join(args.final,f'final_{args.max_epoch}.pth')
     save_dir=join(args.final, 'final_test')
 else:
-    restore_path=Path(f'../tmp/{tag}/checkpoint_epoch{args.max_epoch}.pth')
-    save_dir=Path(f'../tmp/{tag}/final_test')
+    restore_path=Path(f'../{args.tmp}/{tag}/checkpoint_epoch{args.max_epoch}.pth')
+    save_dir=Path(f'../{args.tmp}/{tag}/final_test')
 
 
 predict(model_type= msNet(),
