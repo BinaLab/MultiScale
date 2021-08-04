@@ -76,11 +76,12 @@ class SnowData_s3(D.Dataset):
     dataset from list
     returns data after preperation
     """
-    def __init__(self, bucket, keys, s3Get,  wt =None, transform=None):
+    def __init__(self, bucket, keys, s3Get, train=True, wt =None, transform=None):
         self.df=keys
         self.bucket=bucket
         self.s3Get=s3Get
         self.transform=transform
+        self.train=train
         #self.wt=wt
        # self.prepare=prepare
 
@@ -92,6 +93,7 @@ class SnowData_s3(D.Dataset):
         # get image (jpg)
         key=self.df[index]
         img= self.s3Get(self.bucket, key)
+        img=np.array(img, dtype=np.float32)
 
 
         if self.transform:
@@ -111,6 +113,7 @@ class SnowData_s3(D.Dataset):
         
         if self.train:
             ctour=self.s3Get(self.bucket, key.replace('data', 'layer_binary'))
+            ctour=np.array(ctour, dtype=np.float32)
             if self.transform:
                 ctour=self.transform(ctour)
             ctour= prepare_ctour(ctour)

@@ -184,7 +184,7 @@ df_test=read_csv(args.root/'data/test.lst', header=None)
 images_test=['greenland_picks_final_2009_2012_reformat/2012/'+item for item in df_test[0].values]
 
 
-ds_params={"bucket":BUCKET,  "s3Get": si.from_s3 , 'wt':None}
+ds_params={"bucket":BUCKET,  "s3Get": si.from_s3 , 'train' : False, 'wt':None}
 test_dataset=SnowData_s3(**ds_params, keys=images_test)
 test_loader= DataLoader(test_dataset, batch_size=1)
 
