@@ -105,13 +105,14 @@ class Trainer(object):
             self.writer =None
             
         
-        self.tmp_dir= args.tmp_dir
+        
         #self.logger= args.logger
 
             
-    def train(self, epoch):
+    def train(self, epoch, tmp_dir= None):
 
         ## initilization
+            
         losses = Averagvalue()
         epoch_loss = []
 
@@ -188,14 +189,14 @@ class Trainer(object):
                         self.writer.add_images('masks/pred', outputs[-1] > 0.5, self.global_step)
 
 
-                    if self.tmp_dir is not None:
+                    if tmp_dir is not None:
                         outputs.append(label)
                         outputs.append(image)
-                        dev_checkpoint(save_dir=join(self.tmp_dir, f'training-epoch-{epoch+1}-record'),
+                        dev_checkpoint(save_dir=join(tmp_dir, f'training-epoch-{epoch+1}-record'),
                                    i=self.global_step, epoch=epoch, image_name=image_name, outputs= outputs)
 
-        if self.tmp_dir is not None:
-            self.save_state(epoch, save_path=join(self.tmp_dir , f'checkpoint_epoch{epoch+1}.pth'))
+        if tmp_dir is not None:
+            self.save_state(epoch, save_path=join(tmp_dir , f'checkpoint_epoch{epoch+1}.pth'))
         if epoch==self.max_epoch-1:
             self.final_state= {'epoch': epoch,
                                 'state_dict': self.model.state_dict(),

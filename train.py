@@ -21,7 +21,7 @@ from modules.transforms import Fliplr, Rescale_byrate
 
 from torch.utils.data import DataLoader, ConcatDataset
 from datetime import datetime
-from torch import save, cuda, device
+from torch import save, cuda, device, nn
 
 from pandas import read_csv
 import logging
@@ -30,7 +30,6 @@ import logging
 
 AWS_ID=""
 AWS_KEY= ""
-
 
 
 tag = datetime.now().strftime("%y%m%d-%H%M%S")
@@ -45,7 +44,7 @@ params={
      'root': Path("."),
      'trainlist':Path('./data/train.lst'),
      'devlist':None, #Path('./data/dev.lst'),
-     'tmp_dir': None, # Path(f'../{TMP}/{tag}'), ##os.getcwd()
+     'tmp_dir': join('..',TMP), ##os.getcwd()
      'log_dir': None, #Path(f'../{LOGS}/{tag}'),
      'logger_dir': Path(f'../{LOGGER}'),
      'val_percent': 0,
@@ -63,11 +62,11 @@ params={
      'weights_init_on': False,
      'multi_gpu': True,
      'device' : device("cuda:0" if cuda.is_available() else "cpu"),
-     'final' : join('..',tag)
+     'final' : join('..', TMP, f'final_{tag}'),
+     'dev_tmp_dir': None# join('..', TMP, tag)
      }
 
 args= struct(**params)
-
 
 #%%logger
 #LOG_FORMAT="%(Levelname)s %(asctime)s - %(message)s"
@@ -143,28 +142,32 @@ net=Network(args, model=msNet())
 trainer=Trainer(args,net, train_loader=train_loader)
 
 #%% Training
+
+if args.dev_tmp_dir is not None:
+        os.makedirs(args.dev_tmp_dir) 
 t1=datetime.now()
 for epoch in range(args.start_epoch, args.max_epoch):
     ## initial log (optional:sample36)
-    if (epoch == 0) and (args.tmp_dir is not None) and (args.devlist is not None):
+    if (epoch == 0) and (args.devlist is not None):
         print("Performing initial testing...")
         trainer.dev(dev_loader=dev_loader,save_dir = join(args.tmp_dir, 'testing-record-0-initial'), epoch=epoch)
 
     ## training
+
     t0=datetime.now()
-    trainer.train(epoch=epoch)
+    trainer.train(epoch=epoch, tmp_dir= args.dev_tmp_dir)
     if args.logger is not None:
         dt=datetime.now()-t0
         args.logger.info(f"Training time for epoch {epoch}: {dt.total_seconds()} seconds")
 
     ## dev check (optional:sample36)
-    if (args.tmp_dir is not None) and args.devlist is not None:
+    if args.devlist is not None:
         trainer.dev(dev_loader=dev_loader,save_dir = join(args.tmp_dir, f'testing-record-epoch-{epoch+1}'), epoch=epoch)
     
 dt=datetime.now()-t1
 args.logger.info(f"Total training time : {dt.total_seconds()} seconds")
 
-if args.tmp_dir is None:
+if args.final is not None:
     if not isdir(args.final):
         os.makedirs(args.final)   
     t0=datetime.now()       
@@ -188,15 +191,19 @@ ds_params={"bucket":BUCKET,  "s3Get": si.from_s3 , 'train' : False, 'wt':None}
 test_dataset=SnowData_s3(**ds_params, keys=images_test)
 test_loader= DataLoader(test_dataset, batch_size=1)
 
-if args.tmp_dir is  None:
+if args.final is not  None:
     restore_path=join(args.final,f'final_{args.max_epoch}.pth')
     save_dir=join(args.final, 'final_test')
 else:
-    restore_path=Path(f'../{args.tmp_dir}/{tag}/checkpoint_epoch{args.max_epoch}.pth')
-    save_dir=Path(f'../{args.tmp_dir}/{tag}/final_test')
+    restore_path=Path(f'{args.tmp_dir}/{tag}/checkpoint_epoch{args.max_epoch}.pth')
+    save_dir=Path(f'{args.tmp_dir}/{tag}/final_test')
 
-
-predict(model_type= msNet(),
+if args.multi_gpu:
+    model_type= nn.DataParallel(msNet())
+else:
+    model_type= msNet()
+    
+predict(model_type= model_type,
     restore_path=restore_path,
     save_dir=save_dir,      
     test_loader=test_loader,
